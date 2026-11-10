@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Bird Blast! — Identify Photos</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(180deg,#BAE6FD,#E0F2FE 55%,#BBF7D0);color:#1F2937;min-height:100vh;text-align:center;overflow-x:hidden}
+header{padding:12px 10px 2px}
+h1{margin:0;font-size:34px;color:#DC2626}
+.sub{font-size:17px;color:#475569;margin:4px 0 0}
+#starsLine{font-size:26px;margin:8px 0 0}
+#bar{height:14px;background:#fff;border:2px solid #7DD3FC;border-radius:99px;margin:10px 18px 0;overflow:hidden}
+#fill{height:100%;width:0%;background:linear-gradient(90deg,#F87171,#FBBF24);transition:width .4s}
+#prompt{font-size:30px;font-weight:900;color:#0C4A6E;margin:12px 10px 2px}
+#silly{font-size:18px;color:#475569;margin:2px 10px 0;min-height:22px}
+#field{position:relative;height:430px;margin:12px 14px;background:linear-gradient(180deg,#7DD3FC,#E0F2FE 70%,#86EFAC);border:4px solid #38BDF8;border-radius:26px;overflow:hidden;touch-action:none}
+.cloud{position:absolute;font-size:44px;opacity:.85}
+.target{position:absolute;width:118px;cursor:pointer;transition:transform .3s,opacity .3s}
+.target img{width:118px;height:118px;object-fit:cover;border-radius:16px;border:4px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.25);display:block}
+.target .block{height:16px;background:#B45309;border-radius:6px;margin-top:-4px}
+.target.aimed img{border-color:#FBBF24;box-shadow:0 0 0 5px #FBBF24}
+.target.hit{transform:translateY(30px) rotate(20deg) scale(1.2);opacity:0}
+.target.wrong{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+#bird{position:absolute;font-size:64px;left:60px;top:330px;cursor:grab;z-index:5;user-select:none}
+#sling{position:absolute;left:78px;top:300px;font-size:44px;z-index:1}
+#traj{position:absolute;pointer-events:none;z-index:4}
+#answer{font-size:28px;font-weight:900;color:#DC2626;margin:8px 10px 2px;min-height:36px}
+#break{font-size:24px;font-weight:800;color:#7C3AED;margin:6px 10px}
+.bigBtn{font-size:22px;font-weight:800;padding:16px 24px;border-radius:99px;border:none;cursor:pointer;margin:8px 6px 0}
+#launchBtn{background:#DC2626;color:#fff}
+#hearIt{background:#0284C7;color:#fff}
+#nextBtn{background:#16A34A;color:#fff;display:none}
+#controls{display:flex;gap:10px;justify-content:center;margin:6px 14px 18px;flex-wrap:wrap}
+.smallBtn{font-size:17px;font-weight:700;padding:12px 16px;border-radius:14px;border:2px solid #D1D5DB;background:#fff;cursor:pointer}
+#end{font-size:24px;font-weight:800;color:#DC2626;margin:0 14px 18px}
+.hint{font-size:16px;color:#475569;margin:0 14px}
+</style>
+</head>
+<body>
+<header><h1>🐦 Bird Blast!</h1><p class="sub">Identify Photos — slingshot the bird at the right picture!</p>
+<div id="starsLine">⭐ <span id="starCount">0</span> &nbsp;•&nbsp; Round <span id="roundNum">1</span> of <span id="roundTotal">18</span></div>
+<div id="bar"><div id="fill"></div></div></header>
+<div id="prompt">Hit the DOG!</div>
+<div id="silly"></div>
+<div id="field">
+  <div class="cloud" style="left:20px;top:14px">☁️</div>
+  <div class="cloud" style="right:30px;top:40px">☁️</div>
+  <div class="cloud" style="left:45%;top:8px">☁️</div>
+  <div id="sling">🪃</div>
+  <div id="bird">🐦</div>
+  <div id="targets"></div>
+</div>
+<div id="answer"></div>
+<div id="break"></div>
+<button class="bigBtn" id="hearIt">🔊 Hear It</button>
+<button class="bigBtn" id="launchBtn">🚀 LAUNCH!</button>
+<button class="bigBtn" id="nextBtn">Next! ➡️</button>
+<p class="hint">Drag the bird back and let go to fling it — or tap a picture to aim, then tap LAUNCH!</p>
+<div id="controls">
+<button class="smallBtn" id="shuffleBtn">🔀 Shuffle</button>
+<button class="smallBtn" id="restartBtn">↩️ Play Again</button>
+<button class="smallBtn" id="soundBtn">🔊 Sound: On</button>
+</div>
+<div id="end"></div>
+<script>
+const ITEMS=[
+["dog","Dog","images/dog.jpg"],["cat","Cat","images/cat.jpg"],["bird","Bird","images/bird.jpg"],
+["fish","Fish","images/fish.jpg"],["elephant","Elephant","images/elephant.jpg"],["lion","Lion","images/lion.jpg"],
+["rabbit","Rabbit","images/rabbit.jpg"],["apple","Apple","images/apple.jpg"],["banana","Banana","images/banana.jpg"],
+["pizza","Pizza","images/pizza.jpg"],["cake","Cake","images/cake.jpg"],["car","Car","images/car.jpg"],
+["truck","Truck","images/truck.jpg"],["ball","Ball","images/ball.jpg"],["book","Book","images/book.jpg"],
+["cup","Cup","images/cup.jpg"],["shoe","Shoe","images/shoe.jpg"],["hat","Hat","images/hat.jpg"]
+];
+const SILLY=[["🦖","Say it like a DINOSAUR! ROAR!"],["🤖","Say it like a ROBOT! Beep boop!"],["🐭","Say it in a tiny MOUSE voice!"],["🦁","Say it like a big LION! ROAR!"],["👶","Say it like a BABY! Goo goo!"],["🐸","Say it like a FROG! Ribbit!"],["🎤","Say it like a ROCK STAR!"],["🤫","Say it in a sneaky WHISPER!"],["📣","Say it SUPER LOUD!"],["🐶","Say it like a PUPPY! Woof woof!"]];
+let order=[], idx=0, stars=0, streak=0, soundOn=true, answered=false, flying=false, aimed=null, dragStart=null;
+const field=document.getElementById('field'), bird=document.getElementById('bird'), targetsEl=document.getElementById('targets');
+const promptEl=document.getElementById('prompt'), ans=document.getElementById('answer'), brk=document.getElementById('break'), sillyEl=document.getElementById('silly');
+const launchBtn=document.getElementById('launchBtn'), nextBtn=document.getElementById('nextBtn');
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function speak(t){ if(!soundOn) return; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=.85; speechSynthesis.speak(u);}catch(e){} }
+function boing(){ if(!soundOn) return; try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(600,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(1200,ctx.currentTime+.15); g.gain.setValueAtTime(.2,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.3); o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+.3);}catch(e){} }
+function ding(){ if(!soundOn) return; try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); [880,1320].forEach((f,i)=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,ctx.currentTime+i*.12); g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+i*.12+.4); o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime+i*.12); o.stop(ctx.currentTime+i*.12+.4);});}catch(e){} }
+function updateHeader(){
+  document.getElementById('starCount').textContent=stars;
+  document.getElementById('roundNum').textContent=idx+1;
+  document.getElementById('roundTotal').textContent=order.length;
+  document.getElementById('fill').style.width=(idx/order.length*100)+'%';
+}
+function current(){ return ITEMS[order[idx]]; }
+function showRound(){
+  answered=false; flying=false; aimed=null;
+  const [key,name,src]=current();
+  promptEl.textContent='Hit the '+name.toUpperCase()+'!';
+  const s=SILLY[Math.floor(Math.random()*SILLY.length)];
+  sillyEl.textContent=s[0]+' '+s[1];
+  ans.textContent=''; brk.textContent=''; document.getElementById('end').textContent='';
+  nextBtn.style.display='none'; launchBtn.style.display='inline-block';
+  resetBird();
+  // 3 targets: correct + 2 distractors, shuffled positions
+  const others=shuffle(ITEMS.filter(x=>x[0]!==key)).slice(0,2);
+  const opts=shuffle([[key,name,src],...others]);
+  targetsEl.innerHTML='';
+  const positions=[[150,30],[330,90],[510,25]];
+  opts.forEach((o,i)=>{
+    const d=document.createElement('div'); d.className='target'; d.style.left=positions[i][0]+'px'; d.style.top=positions[i][1]+'px'; d.dataset.key=o[0];
+    d.innerHTML='<img src="'+o[2]+'" alt="'+o[1]+'"><div class="block"></div>';
+    d.onclick=()=>{ if(answered||flying) return; document.querySelectorAll('.target').forEach(t=>t.classList.remove('aimed')); d.classList.add('aimed'); aimed=o[0]; boing(); };
+    targetsEl.appendChild(d);
+  });
+  updateHeader(); speak('Hit the '+name+'!');
+}
+function resetBird(){ bird.style.left='60px'; bird.style.top='330px'; bird.style.transform=''; }
+function award(name){
+  streak++; ding();
+  if(streak>=3){ brk.textContent='🔥 '+streak+' in a row! You are on FIRE! 🔥'; }
+  stars++;
+  if(stars===10){ brk.textContent='🌟🌟🌟 10 STARS! You are a SUPERSTAR! 🌟🌟🌟'; }
+  if((stars)%5===0 && stars!==10){ brk.textContent='🎉 Dance break! 🕺💃 Shake your arms, wiggle, then keep going!'; }
+  ans.textContent='Yes! That\'s the '+name.toLowerCase()+'! 🎉';
+  speak('Yes! That is the '+name+'!');
+  launchBtn.style.display='none'; nextBtn.style.display='inline-block';
+  document.getElementById('fill').style.width=((idx+1)/order.length*100)+'%';
+  updateHeader();
+  if(idx===order.length-1){ document.getElementById('end').innerHTML='🎉🏆🎉<br>You blasted ALL '+order.length+'! You are a Bird Blast superstar!'; }
+}
+function flyTo(targetEl){
+  if(flying||answered) return; flying=true;
+  const fr=field.getBoundingClientRect(), tr=targetEl.getBoundingClientRect();
+  const sx=92, sy=360, tx=tr.left-fr.left+59, ty=tr.top-fr.top+59;
+  const start=performance.now(), dur=550;
+  boing();
+  function step(now){
+    const p=Math.min(1,(now-start)/dur);
+    const x=sx+(tx-sx)*p, y=sy+(ty-sy)*p - 120*Math.sin(Math.PI*p);
+    bird.style.left=x+'px'; bird.style.top=y+'px';
+    if(p<1){ requestAnimationFrame(step); return; }
+    flying=false;
+    const key=targetEl.dataset.key, [ck,name]=current();
+    if(key===ck){
+      targetEl.classList.add('hit'); answered=true; award(name);
+    } else {
+      targetEl.classList.add('wrong'); streak=0;
+      ans.textContent='Oops! That was the '+ITEMS.find(i=>i[0]===key)[1]+'! Try again! 💪';
+      speak('Oops! Try again!');
+      setTimeout(()=>{ targetEl.classList.remove('wrong'); resetBird(); },600);
+    }
+  }
+  requestAnimationFrame(step);
+}
+function launch(){
+  if(answered||flying) return;
+  let el=null;
+  if(aimed){ el=document.querySelector('.target[data-key="'+aimed+'"]'); }
+  else { // no aim: fly at a random target so the kid still sees a launch
+    const all=[...document.querySelectorAll('.target')];
+    el=all[Math.floor(Math.random()*all.length)];
+  }
+  if(el) flyTo(el);
+}
+// drag the bird: pull back, release to launch at nearest target in that direction
+bird.addEventListener('pointerdown',e=>{ if(answered||flying) return; dragStart={x:e.clientX,y:e.clientY}; bird.setPointerCapture(e.pointerId); });
+bird.addEventListener('pointermove',e=>{ if(!dragStart||flying) return; const dx=e.clientX-dragStart.x, dy=e.clientY-dragStart.y; bird.style.left=(60+dx*0.5)+'px'; bird.style.top=(330+dy*0.5)+'px'; });
+bird.addEventListener('pointerup',e=>{
+  if(!dragStart) return;
+  const dx=e.clientX-dragStart.x, dy=e.clientY-dragStart.y; dragStart=null;
+  if(Math.abs(dx)<15 && Math.abs(dy)<15){ resetBird(); return; }
+  // aim at the target most in the drag direction (drag back-left = launch up-right)
+  const all=[...document.querySelectorAll('.target')];
+  let best=all[0], bestScore=-1e9;
+  all.forEach(t=>{ const r=t.getBoundingClientRect(), fr=field.getBoundingClientRect(); const cx=r.left-fr.left+59, cy=r.top-fr.top+59; const vx=cx-92, vy=cy-360; const score=vx*(-dx)+vy*(-dy); if(score>bestScore){bestScore=score; best=t;} });
+  resetBird(); if(best) flyTo(best);
+});
+launchBtn.onclick=launch;
+document.getElementById('hearIt').onclick=()=>{ speak('Hit the '+current()[1]+'!'); };
+nextBtn.onclick=()=>{ idx++; if(idx>=order.length) idx=0; showRound(); };
+document.getElementById('shuffleBtn').onclick=()=>{ order=shuffle([...ITEMS.keys()]); idx=0; showRound(); };
+document.getElementById('restartBtn').onclick=()=>{ order=shuffle([...ITEMS.keys()]); idx=0; stars=0; streak=0; showRound(); };
+document.getElementById('soundBtn').onclick=(e)=>{ soundOn=!soundOn; e.target.textContent=soundOn?'🔊 Sound: On':'🔇 Sound: Off'; };
+order=shuffle([...ITEMS.keys()]); showRound();
+</script>
+</body>
+</html>
